@@ -12,6 +12,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { Footer } from "../components/Footer";
+import { ChallengeProgress } from "../components/ChallengeProgress";
+import { supabase } from "../lib/supabase";
 
 interface Challenge {
   id: string;
@@ -119,7 +121,11 @@ export function Challenges() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("https://formspree.io/f/xvgoqkyn", {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Send to Formspree (your email)
+      const formspreeResponse = await fetch("https://formspree.io/f/mqelrneo", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -135,7 +141,27 @@ export function Challenges() {
         }),
       });
 
-      if (response.ok) {
+      // Save to Supabase database
+      const { error: dbError } = await supabase
+        .from("funding_applications")
+        .insert([{
+          user_id: user?.id || null,
+          name: formData.name,
+          email: formData.email,
+          account_size: `$${selectedChallenge?.accountSize.toLocaleString()}`,
+          experience: formData.experience,
+          trading_pair: formData.tradingPair,
+          country: formData.country,
+          status: "pending",
+          submitted_at: new Date().toISOString(),
+        }]);
+
+      if (dbError) {
+        console.error("Error saving to database:", dbError);
+        // Continue anyway - Formspree submission is more important
+      }
+
+      if (formspreeResponse.ok) {
         setShowSuccess(true);
         setShowApplicationForm(false);
         setFormData({
@@ -147,6 +173,7 @@ export function Challenges() {
         });
       }
     } catch (error) {
+      console.error("Error submitting application:", error);
       alert("There was an error submitting your application. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -178,7 +205,7 @@ export function Challenges() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-white">
-                    ZYNX Capital
+                    ZYNX CAPITAL
                   </h1>
                   <p className="text-xs text-slate-400">Funding Application</p>
                 </div>

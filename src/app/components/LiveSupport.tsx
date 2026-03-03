@@ -26,6 +26,13 @@ export function LiveSupport() {
   const handleSendMessage = (message: string) => {
     if (!message.trim()) return;
 
+    // Special handling for "Speak to Agent" - open email client
+    if (message === "Speak to Agent") {
+      window.location.href =
+        "mailto:hello@zynxcorp.com?subject=Support Request - Live Agent&body=Hello, I would like to speak with a support agent regarding:";
+      return;
+    }
+
     // Add user message
     const userMessage = {
       id: Date.now(),

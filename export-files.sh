@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# 🚀 ZYNX CAPITAL - Quick Export Script
+# This script helps you download all project files
+
+echo "📦 ZYNX CAPITAL Export Helper"
+echo "=============================="
+echo ""
+echo "📋 Files you need to copy from Figma Make to VS Code:"
+echo ""
+
+echo "ROOT FILES:"
+echo "  ✓ index.html"
+echo "  ✓ package.json (create new, see EXPORT_TO_VSCODE.md)"
+echo "  ✓ tsconfig.json (create new, see EXPORT_TO_VSCODE.md)"
+echo "  ✓ vite.config.ts (create new, see EXPORT_TO_VSCODE.md)"
+echo "  ✓ .env (create new with your Supabase keys)"
+echo ""
+
+echo "SRC FILES:"
+echo "  ✓ /src/main.tsx"
+echo ""
+
+echo "APP FILES:"
+echo "  ✓ /src/app/App.tsx"
+echo "  ✓ /src/app/routes.ts"
+echo ""
+
+echo "COMPONENTS:"
+echo "  ✓ /src/app/components/Footer.tsx"
+echo "  ✓ /src/app/components/LiveSupport.tsx"
+echo "  ✓ /src/app/components/ReviewForm.tsx"
+echo "  ✓ /src/app/components/SplashScreen.tsx"
+echo "  ✓ /src/app/components/Testimonials.tsx"
+echo "  ✓ /src/app/components/figma/ImageWithFallback.tsx"
+echo ""
+
+echo "CONTEXT:"
+echo "  ✓ /src/app/context/AuthContext.tsx"
+echo ""
+
+echo "LIB:"
+echo "  ✓ /src/app/lib/supabase.ts"
+echo ""
+
+echo "PAGES:"
+echo "  ✓ /src/app/pages/Landing.tsx"
+echo "  ✓ /src/app/pages/Auth.tsx"
+echo "  ✓ /src/app/pages/Dashboard.tsx"
+echo "  ✓ /src/app/pages/Profile.tsx"
+echo "  ✓ /src/app/pages/Challenges.tsx"
+echo "  ✓ /src/app/pages/Wallet.tsx"
+echo "  ✓ /src/app/pages/Support.tsx"
+echo "  ✓ /src/app/pages/Terms.tsx"
+echo "  ✓ /src/app/pages/Privacy.tsx"
+echo "  ✓ /src/app/pages/Contact.tsx"
+echo ""
+
+echo "STYLES:"
+echo "  ✓ /src/styles/index.css"
+echo "  ✓ /src/styles/theme.css"
+echo "  ✓ /src/styles/fonts.css"
+echo ""
+
+echo "📝 TOTAL: ~25 files"
+echo ""
+echo "🔧 SETUP STEPS:"
+echo "1. Create folder: mkdir zynx-capital"
+echo "2. Copy all files listed above"
+echo "3. Create config files (see EXPORT_TO_VSCODE.md)"
+echo "4. Run: npm install"
+echo "5. Create .env with Supabase keys"
+echo "6. Run: npm run dev"
+echo ""
+echo "✅ See EXPORT_TO_VSCODE.md for complete instructions!"

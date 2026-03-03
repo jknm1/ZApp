@@ -3,7 +3,8 @@ import { useNavigate } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { useGoogleLogin } from "@react-oauth/google";
 import { Mail, Lock, User as UserIcon, ArrowLeft } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
+import { ForgotPassword } from "../components/ForgotPassword";
 
 // Apple Sign In Configuration
 declare global {
@@ -19,6 +20,8 @@ export function Auth() {
   const [name, setName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { login, createAccount } = useAuth();
   const navigate = useNavigate();
 
@@ -34,12 +37,13 @@ export function Auth() {
     };
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (isLogin) {
-      if (login(email, password)) {
+      const success = await login(email, password);
+      if (success) {
         navigate("/dashboard");
       } else {
         setError("Invalid email or password");
@@ -53,7 +57,8 @@ export function Auth() {
         setError("Password must be at least 6 characters");
         return;
       }
-      if (createAccount(email, password, name)) {
+      const success = await createAccount(email, password, name);
+      if (success) {
         navigate("/dashboard");
       } else {
         setError("Email already exists");
@@ -80,11 +85,13 @@ export function Auth() {
         const googlePassword = `google_${userInfo.sub}`; // Use Google ID as password
         
         // Try to create account first
-        if (createAccount(googleEmail, googlePassword, googleName)) {
+        const accountCreated = await createAccount(googleEmail, googlePassword, googleName);
+        if (accountCreated) {
           navigate("/dashboard");
         } else {
           // Account exists, try to login
-          if (login(googleEmail, googlePassword)) {
+          const loginSuccess = await login(googleEmail, googlePassword);
+          if (loginSuccess) {
             navigate("/dashboard");
           } else {
             setError("Google authentication failed. Please try again.");
@@ -102,14 +109,22 @@ export function Auth() {
         setError("Google authentication was cancelled or failed.");
       }
     },
+    flow: 'implicit',
   });
 
   // Apple Sign In
-  const handleAppleLogin = () => {
-    // Since Apple Sign In requires production setup, we'll provide a development fallback
-    // In production, uncomment the real Apple OAuth code below
+  const handleAppleLogin = async () => {
+    setIsAppleLoading(true);
+    setError("");
     
-    // Development Mode: Simulate Apple login
+    // Simulate authentication delay (like real Apple Sign In)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Apple Developer credentials not configured - deny access
+    setError("Apple Sign In is not available. Apple Developer credentials have not been configured yet. Please use Google Sign In or Email to continue.");
+    setIsAppleLoading(false);
+    
+    /* DEVELOPMENT MODE CODE - Removed for now
     const timestamp = Date.now();
     const randomId = Math.floor(Math.random() * 10000);
     const appleEmail = `apple.user${randomId}@privaterelay.appleid.com`;
@@ -123,8 +138,12 @@ export function Auth() {
       // Account exists, try to login
       if (login(appleEmail, applePassword)) {
         navigate("/dashboard");
+      } else {
+        setError("Apple authentication failed. Please try again.");
+        setIsAppleLoading(false);
       }
     }
+    */
     
     /* PRODUCTION CODE - Uncomment when you have Apple credentials configured:
     
@@ -155,6 +174,7 @@ export function Auth() {
               navigate("/dashboard");
             } else {
               setError("Apple authentication failed. Please try again.");
+              setIsAppleLoading(false);
             }
           }
         }).catch((error: any) => {
@@ -164,13 +184,16 @@ export function Auth() {
           }
           console.error("Apple login error:", error);
           setError("Apple authentication was cancelled or failed.");
+          setIsAppleLoading(false);
         });
       } catch (error) {
         console.error("Apple Sign In initialization error:", error);
         setError("Apple Sign In is not available. Please use email login.");
+        setIsAppleLoading(false);
       }
     } else {
       setError("Apple Sign In is loading. Please try again in a moment.");
+      setIsAppleLoading(false);
     }
     */
   };
@@ -179,17 +202,13 @@ export function Auth() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Back Button */}
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+        <button
           onClick={() => navigate("/")}
-          className="mb-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+          className="mb-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors hover:scale-105"
         >
           <ArrowLeft className="w-5 h-5" />
           Back
-        </motion.button>
+        </button>
 
         {/* Logo and Brand */}
         <motion.div
@@ -215,6 +234,7 @@ export function Auth() {
         >
           <div className="flex gap-2 mb-6 bg-slate-950/50 rounded-2xl p-1">
             <button
+              type="button"
               onClick={() => setIsLogin(true)}
               className={`flex-1 py-3 rounded-xl font-medium transition-all ${
                 isLogin
@@ -225,6 +245,7 @@ export function Auth() {
               Sign In
             </button>
             <button
+              type="button"
               onClick={() => setIsLogin(false)}
               className={`flex-1 py-3 rounded-xl font-medium transition-all ${
                 !isLogin
@@ -248,12 +269,10 @@ export function Auth() {
 
           {/* Social Login */}
           <div className="space-y-3 mb-6">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <button
               type="button"
-              onClick={() => handleGoogleLogin()}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-slate-900 rounded-2xl font-medium hover:bg-slate-100 transition-all"
+              onClick={handleGoogleLogin}
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-slate-900 rounded-2xl font-medium hover:bg-slate-100 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
@@ -274,20 +293,43 @@ export function Auth() {
                 />
               </svg>
               Continue with Google
-            </motion.button>
+            </button>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <button
               type="button"
               onClick={handleAppleLogin}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-slate-950 text-white border border-slate-800 rounded-2xl font-medium hover:bg-slate-900 transition-all"
+              disabled={isAppleLoading}
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-slate-950 text-white border border-slate-800 rounded-2xl font-medium hover:bg-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
             >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-              </svg>
-              Continue with Apple
-            </motion.button>
+              {isAppleLoading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Authenticating...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+                  </svg>
+                  Continue with Apple
+                </>
+              )}
+            </button>
           </div>
 
           <div className="relative mb-6">
@@ -374,26 +416,44 @@ export function Auth() {
               </div>
             )}
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <button
               type="submit"
-              className="w-full bg-gradient-to-r from-pink-500 via-pink-600 to-rose-600 text-white py-3.5 rounded-2xl font-medium hover:shadow-lg hover:shadow-pink-500/30 transition-all"
+              className="w-full bg-gradient-to-r from-pink-500 via-pink-600 to-rose-600 text-white py-3.5 rounded-2xl font-medium hover:shadow-lg hover:shadow-pink-500/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               {isLogin ? "Sign In" : "Create Account"}
-            </motion.button>
+            </button>
           </form>
 
-          {/* Setup Instructions */}
-          <div className="mt-6 p-4 bg-slate-950/50 rounded-2xl border border-slate-700">
-            <p className="text-xs text-slate-400 leading-relaxed">
-              <strong className="text-slate-300">Production Setup Required:</strong>
-              <br />
-              • Google: Add Client ID in App.tsx (from console.cloud.google.com)
-              <br />
-              • Apple: Configure Service ID and add to Auth.tsx
-            </p>
-          </div>
+          {/* Forgot Password Link */}
+          <AnimatePresence>
+            {isLogin && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mt-4 text-center"
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-sm text-pink-400 hover:text-pink-300 font-medium transition-colors"
+                >
+                  Forgot Password?
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Forgot Password Modal */}
+          <AnimatePresence>
+            {showForgotPassword && (
+              <ForgotPassword
+                onClose={() => setShowForgotPassword(false)}
+                email={email}
+                setEmail={setEmail}
+              />
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
     </div>

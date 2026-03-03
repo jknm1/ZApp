@@ -178,4 +178,39 @@
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
+
+  /* Mobile-specific styles */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Touch-friendly tap targets */
+  @media (max-width: 640px) {
+    button, a, input[type="button"], input[type="submit"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent text size adjustment on orientation change */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Improve tap highlight */
+  * {
+    -webkit-tap-highlight-color: rgba(236, 72, 153, 0.1);
+  }
 }

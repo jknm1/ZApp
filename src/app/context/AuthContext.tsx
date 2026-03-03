@@ -1,10 +1,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { supabase } from "../lib/supabase";
 
 interface User {
   id: string;
   email: string;
   name: string;
   balance: number;
+  country?: string;
   mt5Accounts: MT5Account[];
 }
 
@@ -18,101 +20,254 @@ interface MT5Account {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  createAccount: (email: string, password: string, name: string) => boolean;
+  createAccount: (email: string, password: string, name: string) => Promise<boolean>;
+  updateUserProfile: (updates: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in
-    const storedUser = localStorage.getItem("zynx_user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    // Check if user is logged in from localStorage (for session persistence)
+    const storedUserId = localStorage.getItem("zynx_user_id");
+    if (storedUserId) {
+      loadUser(storedUserId);
+    } else {
+      setLoading(false);
     }
   }, []);
 
-  const login = (email: string, password: string) => {
-    // Get all users from localStorage
-    const usersData = localStorage.getItem("zynx_users");
-    const users = usersData ? JSON.parse(usersData) : [];
+  const loadUser = async (userId: string) => {
+    try {
+      // Fetch user from Supabase
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-    // Find user with matching credentials
-    const foundUser = users.find(
-      (u: any) => u.email === email && u.password === password
-    );
+      if (userError || !userData) {
+        console.error("Error loading user:", userError);
+        localStorage.removeItem("zynx_user_id");
+        setLoading(false);
+        return;
+      }
 
-    if (foundUser) {
-      const userData = {
-        id: foundUser.id,
-        email: foundUser.email,
-        name: foundUser.name,
-        balance: foundUser.balance,
-        mt5Accounts: foundUser.mt5Accounts,
+      // Fetch MT5 accounts
+      const { data: mt5Data, error: mt5Error } = await supabase
+        .from("mt5_accounts")
+        .select("*")
+        .eq("user_id", userId);
+
+      const mt5Accounts = mt5Data?.map((account) => ({
+        id: account.id,
+        login: account.login,
+        password: account.password,
+        server: account.server,
+        accountType: account.account_type,
+      })) || [];
+
+      const userObject = {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        balance: userData.balance,
+        country: userData.country,
+        mt5Accounts,
       };
-      setUser(userData);
-      localStorage.setItem("zynx_user", JSON.stringify(userData));
-      return true;
+
+      setUser(userObject);
+    } catch (error) {
+      console.error("Error loading user:", error);
+      localStorage.removeItem("zynx_user_id");
+    } finally {
+      setLoading(false);
     }
-    return false;
+  };
+
+  const login = async (email: string, password: string) => {
+    try {
+      // Find user with matching credentials
+      const { data: userData, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("email", email)
+        .eq("password", password)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Login error:", error);
+        return false;
+      }
+
+      if (!userData) {
+        // No user found with those credentials
+        return false;
+      }
+
+      // Fetch MT5 accounts
+      const { data: mt5Data } = await supabase
+        .from("mt5_accounts")
+        .select("*")
+        .eq("user_id", userData.id);
+
+      const mt5Accounts = mt5Data?.map((account) => ({
+        id: account.id,
+        login: account.login,
+        password: account.password,
+        server: account.server,
+        accountType: account.account_type,
+      })) || [];
+
+      const userObject = {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        balance: userData.balance,
+        country: userData.country,
+        mt5Accounts,
+      };
+
+      setUser(userObject);
+      localStorage.setItem("zynx_user_id", userData.id);
+      return true;
+    } catch (error) {
+      console.error("Login error:", error);
+      return false;
+    }
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("zynx_user");
+    localStorage.removeItem("zynx_user_id");
   };
 
-  const createAccount = (email: string, password: string, name: string) => {
-    // Get existing users
-    const usersData = localStorage.getItem("zynx_users");
-    const users = usersData ? JSON.parse(usersData) : [];
+  const createAccount = async (email: string, password: string, name: string) => {
+    try {
+      // Check if email already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
 
-    // Check if email already exists
-    if (users.some((u: any) => u.email === email)) {
-      return false;
-    }
+      if (existingUser) {
+        return false;
+      }
 
-    // Create new user
-    const newUser = {
-      id: Date.now().toString(),
-      email,
-      password,
-      name,
-      balance: 0,
-      mt5Accounts: [
-        {
-          id: "1",
+      // Create new user
+      const { data: newUser, error: userError } = await supabase
+        .from("users")
+        .insert({
+          email,
+          password,
+          name,
+          balance: 0,
+        })
+        .select()
+        .single();
+
+      if (userError || !newUser) {
+        console.error("Error creating user:", userError);
+        return false;
+      }
+
+      // Create demo MT5 account
+      const { data: mt5Account, error: mt5Error } = await supabase
+        .from("mt5_accounts")
+        .insert({
+          user_id: newUser.id,
           login: "MT5-" + Math.floor(Math.random() * 1000000),
           password: "Demo" + Math.floor(Math.random() * 10000),
           server: "ZynxCapital-Demo",
-          accountType: "Demo Account",
-        },
-      ],
-    };
+          account_type: "Demo Account",
+        })
+        .select()
+        .single();
 
-    users.push(newUser);
-    localStorage.setItem("zynx_users", JSON.stringify(users));
+      if (mt5Error) {
+        console.error("Error creating MT5 account:", mt5Error);
+      }
 
-    // Auto login
-    const userData = {
-      id: newUser.id,
-      email: newUser.email,
-      name: newUser.name,
-      balance: newUser.balance,
-      mt5Accounts: newUser.mt5Accounts,
-    };
-    setUser(userData);
-    localStorage.setItem("zynx_user", JSON.stringify(userData));
+      const mt5Accounts = mt5Account ? [{
+        id: mt5Account.id,
+        login: mt5Account.login,
+        password: mt5Account.password,
+        server: mt5Account.server,
+        accountType: mt5Account.account_type,
+      }] : [];
 
-    return true;
+      // Auto login
+      const userObject = {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        balance: newUser.balance,
+        country: newUser.country,
+        mt5Accounts,
+      };
+
+      setUser(userObject);
+      localStorage.setItem("zynx_user_id", newUser.id);
+      
+      // Create welcome notification for new user
+      try {
+        await supabase.from("notifications").insert({
+          user_id: newUser.id,
+          type: "success",
+          title: "Welcome to ZYNX CAPITAL!",
+          message: "Your account has been successfully created. Start your trading journey today!",
+          read: false,
+        });
+      } catch (notifError) {
+        // Silently fail if notifications table doesn't exist
+        console.log("Notification creation skipped (table may not exist)");
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error creating account:", error);
+      return false;
+    }
   };
 
+  const updateUserProfile = async (updates: Partial<User>) => {
+    if (!user) return;
+
+    try {
+      // Remove mt5Accounts from updates as it's in a separate table
+      const { mt5Accounts, ...userUpdates } = updates;
+
+      // Update user in Supabase
+      const { error } = await supabase
+        .from("users")
+        .update(userUpdates)
+        .eq("id", user.id);
+
+      if (error) {
+        console.error("Error updating profile:", error);
+        return;
+      }
+
+      // Update local state
+      const updatedUser = { ...user, ...updates };
+      setUser(updatedUser);
+    } catch (error) {
+      console.error("Error updating profile:", error);
+    }
+  };
+
+  if (loading) {
+    return null; // Or return a loading spinner
+  }
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, createAccount }}>
+    <AuthContext.Provider value={{ user, login, logout, createAccount, updateUserProfile }}>
       {children}
     </AuthContext.Provider>
   );

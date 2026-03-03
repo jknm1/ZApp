@@ -22,7 +22,7 @@ export function TermsConditions() {
                 <span className="text-2xl font-black text-white">Z</span>
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">ZYNX Capital</h1>
+                <h1 className="text-2xl font-bold text-white">ZYNX CAPITAL</h1>
                 <p className="text-xs text-slate-400">Terms & Conditions</p>
               </div>
             </div>

@@ -44,7 +44,7 @@ export function Landing() {
               <span className="text-4xl font-black text-white">Z</span>
             </motion.div>
             <div>
-              <h1 className="text-4xl font-bold text-white">ZYNX Capital</h1>
+              <h1 className="text-4xl font-bold text-white">ZYNX CAPITAL</h1>
               <p className="text-slate-400">Professional Trading</p>
             </div>
           </motion.div>

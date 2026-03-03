@@ -49,7 +49,21 @@ export function Wallet() {
 
   const handleWithdrawSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedMethod && parseFloat(withdrawAmount) > 0) {
+    
+    const amount = parseFloat(withdrawAmount);
+    
+    // Check for insufficient balance
+    if (user.balance === 0) {
+      alert("Insufficient Balance\n\nAvailable Balance: $0.00\n\nYou don't have sufficient funds to withdraw. Please ensure you have a positive balance before attempting a withdrawal.");
+      return;
+    }
+    
+    if (amount > user.balance) {
+      alert(`Insufficient Balance\n\nAvailable Balance: $${user.balance.toFixed(2)}\n\nWithdrawal amount ($${amount.toFixed(2)}) exceeds your available balance.`);
+      return;
+    }
+    
+    if (selectedMethod && amount > 0) {
       let message = `Withdrawal request of $${withdrawAmount} via ${selectedMethod.toUpperCase()}`;
       if (selectedMethod === "crypto") {
         message += ` (${selectedCrypto?.toUpperCase()}) to address: ${walletAddress}`;
@@ -92,7 +106,7 @@ export function Wallet() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-white">
-                    ZYNX Capital
+                    ZYNX CAPITAL
                   </h1>
                   <p className="text-xs text-slate-400">Wallet</p>
                 </div>
