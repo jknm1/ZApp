@@ -15,6 +15,8 @@ import {
   Search,
   Filter,
   Eye,
+  Bell,
+  Send,
 } from "lucide-react";
 import { Footer } from "../components/Footer";
 import { motion, AnimatePresence } from "motion/react";
@@ -67,7 +69,7 @@ interface User {
 export function AdminDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"overview" | "applications" | "reviews" | "users" | "kyc">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "applications" | "reviews" | "users" | "kyc" | "notifications">("overview");
   const [applications, setApplications] = useState<Application[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [kycSubmissions, setKycSubmissions] = useState<KYCSubmission[]>([]);
@@ -76,6 +78,10 @@ export function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [reviewingKYC, setReviewingKYC] = useState<KYCSubmission | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [notificationTitle, setNotificationTitle] = useState("");
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [notificationType, setNotificationType] = useState<"success" | "info" | "warning" | "update">("info");
+  const [sendingNotification, setSendingNotification] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -390,6 +396,70 @@ export function AdminDashboard() {
     }
   };
 
+  const handleBroadcastNotification = async () => {
+    if (!notificationTitle.trim() || !notificationMessage.trim()) {
+      toast.error("Please enter both title and message");
+      return;
+    }
+
+    setSendingNotification(true);
+    
+    try {
+      // Get all authenticated users from auth.users (real users)
+      const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
+
+      if (authError) {
+        console.error("Error fetching auth users:", authError);
+        toast.error(`Failed to fetch users: ${authError.message}`);
+        setSendingNotification(false);
+        return;
+      }
+
+      const authUsers = authData?.users || [];
+      console.log("Authenticated users to notify:", authUsers.length);
+
+      if (authUsers.length === 0) {
+        toast.error("No authenticated users found to send notifications to");
+        setSendingNotification(false);
+        return;
+      }
+
+      // Create notification for each authenticated user
+      const notifications = authUsers.map(u => ({
+        user_id: u.id,
+        type: notificationType,
+        title: notificationTitle,
+        message: notificationMessage,
+        read: false,
+      }));
+
+      console.log("Attempting to insert notifications:", notifications.length);
+
+      const { data, error } = await supabase
+        .from("notifications")
+        .insert(notifications);
+
+      if (error) {
+        console.error("Supabase error details:", error);
+        toast.error(`Failed to send notifications: ${error.message}`);
+        setSendingNotification(false);
+        return;
+      }
+
+      console.log("Notifications sent successfully:", data);
+
+      toast.success(`🎉 Notification sent to ${authUsers.length} users!`);
+      setNotificationTitle("");
+      setNotificationMessage("");
+      setNotificationType("info");
+      setSendingNotification(false);
+    } catch (error: any) {
+      console.error("Error sending notifications:", error);
+      toast.error(`Failed to send notifications: ${error.message || "Unknown error"}`);
+      setSendingNotification(false);
+    }
+  };
+
   if (!user) {
     return null;
   }
@@ -630,6 +700,18 @@ export function AdminDashboard() {
             >
               <span className="hidden sm:inline">KYC Submissions ({stats.pendingKYC})</span>
               <span className="sm:hidden">KYC ({stats.pendingKYC})</span>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setActiveTab("notifications")}
+              className={`px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all text-sm sm:text-base ${
+                activeTab === "notifications"
+                  ? "bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-lg shadow-pink-500/30"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800"
+              }`}
+            >
+              Notifications
             </motion.button>
           </div>
         </motion.div>
@@ -918,17 +1000,30 @@ export function AdminDashboard() {
                   <div className="grid grid-cols-3 gap-4 mb-4">
                     <div>
                       <p className="text-slate-500 text-xs mb-1">Document Type</p>
-                      <p className="text-white font-medium">{kyc.document_type}</p>
+                      <p className="text-white font-medium capitalize">{kyc.document_type.replace(/_/g, ' ')}</p>
                     </div>
                     <div>
                       <p className="text-slate-500 text-xs mb-1">File Name</p>
-                      <p className="text-white font-medium">{kyc.file_name}</p>
+                      <p className="text-white font-medium truncate">{kyc.file_name}</p>
                     </div>
                     <div>
                       <p className="text-slate-500 text-xs mb-1">Submitted</p>
-                      <p className="text-white font-medium">{kyc.submitted_at}</p>
+                      <p className="text-white font-medium">{new Date(kyc.submitted_at).toLocaleDateString()}</p>
                     </div>
                   </div>
+
+                  {/* View Document Button */}
+                  {kyc.file_url && (
+                    <a
+                      href={kyc.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block mb-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 py-2 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2"
+                    >
+                      <Eye className="w-4 h-4" />
+                      View Document
+                    </a>
+                  )}
 
                   {kyc.status === "pending" && (
                     <div className="flex gap-3">
@@ -995,6 +1090,79 @@ export function AdminDashboard() {
                 </div>
               </motion.div>
             )}
+          </motion.div>
+        )}
+
+        {/* Notifications Tab */}
+        {activeTab === "notifications" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-slate-900/60 backdrop-blur-xl rounded-3xl p-8 border border-slate-800"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-semibold text-white">Broadcast Notifications</h3>
+                <p className="text-slate-400 text-sm">Send notifications to all {users.length} users</p>
+              </div>
+              <div className="px-4 py-2 bg-pink-500/20 border border-pink-500/30 rounded-xl">
+                <p className="text-pink-300 text-sm font-medium">{users.length} Recipients</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/50 rounded-2xl p-6 border border-slate-800 space-y-6">
+              <div>
+                <label className="block text-lg font-semibold text-white mb-3">Notification Title</label>
+                <input
+                  value={notificationTitle}
+                  onChange={(e) => setNotificationTitle(e.target.value)}
+                  className="w-full bg-slate-900/50 rounded-xl p-4 border border-slate-700 focus:border-pink-500 focus:outline-none text-white placeholder-slate-500"
+                  placeholder="Enter notification title..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-lg font-semibold text-white mb-3">Notification Message</label>
+                <textarea
+                  value={notificationMessage}
+                  onChange={(e) => setNotificationMessage(e.target.value)}
+                  className="w-full h-32 bg-slate-900/50 rounded-xl p-4 border border-slate-700 focus:border-pink-500 focus:outline-none text-white placeholder-slate-500 resize-none"
+                  placeholder="Enter notification message..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-lg font-semibold text-white mb-3">Notification Type</label>
+                <select
+                  value={notificationType}
+                  onChange={(e) => setNotificationType(e.target.value as "success" | "info" | "warning" | "update")}
+                  className="w-full bg-slate-900/50 rounded-xl p-4 border border-slate-700 focus:border-pink-500 focus:outline-none text-white"
+                >
+                  <option value="success">✅ Success (Green)</option>
+                  <option value="info">ℹ️ Info (Blue)</option>
+                  <option value="warning">⚠️ Warning (Yellow)</option>
+                  <option value="update">🚀 Update (Pink)</option>
+                </select>
+              </div>
+
+              <button
+                onClick={handleBroadcastNotification}
+                disabled={sendingNotification || !notificationTitle.trim() || !notificationMessage.trim()}
+                className="w-full bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white py-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg"
+              >
+                {sendingNotification ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Sending to {users.length} users...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5" />
+                    Send to All Users
+                  </>
+                )}
+              </button>
+            </div>
           </motion.div>
         )}
       </main>

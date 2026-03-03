@@ -40,33 +40,62 @@ export function Notifications() {
   useEffect(() => {
     if (user) {
       fetchNotifications();
+      
+      // Set up real-time subscription for new notifications
+      const subscription = supabase
+        .channel('notifications-changes')
+        .on('postgres_changes', 
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          }, 
+          (payload) => {
+            console.log('Notification change detected:', payload);
+            fetchNotifications();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        subscription.unsubscribe();
+      };
     }
   }, [user]);
 
   const fetchNotifications = async () => {
     if (!user) return;
 
+    console.log("🔔 Fetching notifications for user:", user.id);
+
     try {
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
         .eq("user_id", user.id)
-        .eq("read", false) // Only fetch unread notifications
         .order("created_at", { ascending: false });
 
+      console.log("🔔 Notifications query result:", { data, error });
+
       if (error) {
+        console.error("🔔 Error fetching notifications:", error);
         // If table doesn't exist, silently use mock data (no error logging)
         if (error.code === "PGRST205" || error.code === "42P01") {
+          console.log("🔔 Table doesn't exist, using mock data");
           setNotifications(getMockNotifications());
           setLoading(false);
           return;
         }
         // Only log unexpected errors
-        console.error("Error fetching notifications:", error);
+        console.error("🔔 Unexpected error fetching notifications:", error);
         setNotifications(getMockNotifications());
         setLoading(false);
         return;
       }
+
+      console.log("🔔 Raw data from database:", data);
+      console.log("🔔 Number of notifications:", data?.length || 0);
 
       if (data && data.length > 0) {
         const formattedNotifications = data.map((notif) => ({
@@ -78,14 +107,17 @@ export function Notifications() {
           read: notif.read,
           created_at: notif.created_at,
         }));
+        console.log("🔔 Formatted notifications:", formattedNotifications);
         setNotifications(formattedNotifications);
       } else {
-        // No unread notifications - set empty array
+        // No notifications - set empty array
+        console.log("🔔 No notifications found for user");
         setNotifications([]);
       }
       setLoading(false);
     } catch (error) {
       // Silently use mock data on any error
+      console.error("🔔 Catch block error:", error);
       setNotifications(getMockNotifications());
       setLoading(false);
     }
@@ -111,6 +143,12 @@ export function Notifications() {
       setNotifications(
         notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
       );
+      // Save to localStorage
+      const readNotifications = JSON.parse(localStorage.getItem("readNotifications") || "[]");
+      if (!readNotifications.includes(id)) {
+        readNotifications.push(id);
+        localStorage.setItem("readNotifications", JSON.stringify(readNotifications));
+      }
       return;
     }
 
@@ -138,18 +176,14 @@ export function Notifications() {
   const markAllAsRead = async () => {
     if (!user) return;
 
-    // For mock notifications, also save to localStorage
+    // For mock notifications, update local state only
     const mockNotificationIds = notifications
       .filter(n => n.id.startsWith("mock-"))
       .map(n => n.id);
     
     if (mockNotificationIds.length > 0) {
-      const readNotifications = JSON.parse(localStorage.getItem("readNotifications") || "[]");
-      const updatedReadNotifications = [...new Set([...readNotifications, ...mockNotificationIds])];
-      localStorage.setItem("readNotifications", JSON.stringify(updatedReadNotifications));
-      
-      // Filter out read mock notifications
-      setNotifications([]);
+      // Mark all mock notifications as read in local state
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       return;
     }
 
@@ -168,12 +202,8 @@ export function Notifications() {
       if (error && error.code !== "PGRST205" && error.code !== "42P01") {
         console.error("Error marking all as read:", error);
       }
-      
-      // After marking all as read, clear the notifications list since we only show unread
-      setNotifications([]);
     } catch (error) {
-      // Silently fail for mock data
-      setNotifications([]);
+      // Silently fail
     }
   };
 
@@ -227,7 +257,7 @@ export function Notifications() {
         title: "Welcome to ZYNX CAPITAL!",
         message: "Your account has been successfully created. Start your trading journey today!",
         time: "Just now",
-        read: false,
+        read: readNotifications.includes("mock-1"),
       },
       {
         id: "mock-2",
@@ -235,7 +265,7 @@ export function Notifications() {
         title: "Complete Your Profile",
         message: "Add your trading experience and preferences to get personalized recommendations.",
         time: "5 min ago",
-        read: false,
+        read: readNotifications.includes("mock-2"),
       },
       {
         id: "mock-3",
@@ -243,12 +273,12 @@ export function Notifications() {
         title: "New Challenge Available",
         message: "$100K funding challenge is now available. Apply now to get funded!",
         time: "2 hours ago",
-        read: false,
+        read: readNotifications.includes("mock-3"),
       },
     ];
     
-    // Filter out notifications that have been marked as read
-    return allMockNotifications.filter(notif => !readNotifications.includes(notif.id));
+    // Return all mock notifications with their read status
+    return allMockNotifications;
   };
 
   return (

@@ -18,6 +18,7 @@ import {
   Shield,
   FileText,
   BookOpen,
+  Link as LinkIcon,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
@@ -29,18 +30,20 @@ import { Testimonials } from "../components/Testimonials";
 import { Notifications } from "../components/Notifications";
 import { TradingStats } from "../components/TradingStats";
 import { SocialProofTicker } from "../components/SocialProofTicker";
+import { LinkMT5 } from "../components/LinkMT5";
 import { motion, AnimatePresence } from "motion/react";
 import { supabase } from "../lib/supabase";
 import { toast } from "sonner";
 
 export function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [showPasswords, setShowPasswords] = useState<{ [key: string]: boolean }>(
     {}
   );
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [showTradingStats, setShowTradingStats] = useState(false);
+  const [showLinkMT5, setShowLinkMT5] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -265,90 +268,103 @@ export function Dashboard() {
           <h3 className="text-xl font-semibold text-white mb-4">
             Your MT5 Login Credentials
           </h3>
-          <div className="space-y-4">
-            {user.mt5Accounts.map((account) => (
-              <motion.div
-                key={account.id}
-                whileHover={{ scale: 1.01 }}
-                className="bg-slate-950/50 rounded-2xl p-5 border border-slate-800"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-slate-400 text-sm">Account Type</p>
-                    <p className="text-white font-medium">
-                      {account.accountType}
-                    </p>
-                  </div>
-                  <div className="px-3 py-1.5 bg-pink-500/20 text-pink-300 rounded-full text-sm">
-                    Active
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-slate-400 text-sm mb-1">Login ID</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-white font-mono">{account.login}</p>
-                      <motion.button
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => copyToClipboard(account.login)}
-                        className="p-1 text-slate-400 hover:text-pink-400 transition-colors"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </motion.button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-slate-400 text-sm mb-1">Password</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-white font-mono">
-                        {showPasswords[account.id]
-                          ? account.password
-                          : "••••••••"}
+          
+          {user.mt5Accounts.length > 0 ? (
+            <div className="space-y-4">
+              {user.mt5Accounts.map((account) => (
+                <motion.div
+                  key={account.id}
+                  whileHover={{ scale: 1.01 }}
+                  className="bg-slate-950/50 rounded-2xl p-5 border border-slate-800"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-slate-400 text-sm">Account Type</p>
+                      <p className="text-white font-medium">
+                        {account.accountType}
                       </p>
-                      <motion.button
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => togglePasswordVisibility(account.id)}
-                        className="p-1 text-slate-400 hover:text-pink-400 transition-colors"
-                      >
-                        {showPasswords[account.id] ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => copyToClipboard(account.password)}
-                        className="p-1 text-slate-400 hover:text-pink-400 transition-colors"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </motion.button>
+                    </div>
+                    <div className="px-3 py-1.5 bg-pink-500/20 text-pink-300 rounded-full text-sm">
+                      Active
                     </div>
                   </div>
 
-                  <div>
-                    <p className="text-slate-400 text-sm mb-1">Server</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-white font-mono">{account.server}</p>
-                      <motion.button
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => copyToClipboard(account.server)}
-                        className="p-1 text-slate-400 hover:text-pink-400 transition-colors"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </motion.button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-slate-400 text-sm mb-1">Login ID</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-white font-mono">{account.login}</p>
+                        <motion.button
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => copyToClipboard(account.login)}
+                          className="p-1 text-slate-400 hover:text-pink-400 transition-colors"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </motion.button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-slate-400 text-sm mb-1">Password</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-white font-mono">
+                          {showPasswords[account.id]
+                            ? account.password
+                            : "••••••••"}
+                        </p>
+                        <motion.button
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => togglePasswordVisibility(account.id)}
+                          className="p-1 text-slate-400 hover:text-pink-400 transition-colors"
+                        >
+                          {showPasswords[account.id] ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => copyToClipboard(account.password)}
+                          className="p-1 text-slate-400 hover:text-pink-400 transition-colors"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </motion.button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-slate-400 text-sm mb-1">Server</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-white font-mono">{account.server}</p>
+                        <motion.button
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => copyToClipboard(account.server)}
+                          className="p-1 text-slate-400 hover:text-pink-400 transition-colors"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </motion.button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-slate-950/50 rounded-2xl p-8 border border-slate-800 text-center">
+              <Shield className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+              <h4 className="text-lg font-semibold text-white mb-2">
+                No Active Account Linked with MT5
+              </h4>
+              <p className="text-slate-400">
+                Link your broker or apply for funding to see your login credentials
+              </p>
+            </div>
+          )}
         </motion.div>
 
         {/* Stats Grid */}
@@ -437,6 +453,16 @@ export function Dashboard() {
       <AnimatePresence>
         {showTradingStats && (
           <TradingStats onClose={() => setShowTradingStats(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Link MT5 Modal */}
+      <AnimatePresence>
+        {showLinkMT5 && (
+          <LinkMT5
+            onClose={() => setShowLinkMT5(false)}
+            refreshUser={refreshUser}
+          />
         )}
       </AnimatePresence>
     </div>

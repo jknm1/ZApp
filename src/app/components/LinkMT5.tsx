@@ -3,14 +3,18 @@ import { motion } from "motion/react";
 import { X, Link as LinkIcon, Server, Key, CheckCircle, AlertCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { toast } from "sonner";
+import { useAuth } from "../context/AuthContext";
 
 interface LinkMT5Props {
   onClose: () => void;
-  userId: string;
-  onSuccess: () => void;
+  userId?: string;
+  onSuccess?: () => void;
+  refreshUser?: () => Promise<void>;
 }
 
-export function LinkMT5({ onClose, userId, onSuccess }: LinkMT5Props) {
+export function LinkMT5({ onClose, userId: propUserId, onSuccess, refreshUser }: LinkMT5Props) {
+  const { user } = useAuth();
+  const userId = propUserId || user?.id || "";
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     brokerServer: "",
@@ -144,8 +148,9 @@ export function LinkMT5({ onClose, userId, onSuccess }: LinkMT5Props) {
       setLoading(false);
       
       // Call success callbacks
-      onSuccess();
+      onSuccess?.();
       onClose();
+      refreshUser?.();
     } catch (error: any) {
       console.error("Unexpected error linking MT5:", error);
       toast.error(`Unexpected error: ${error.message || "Please try again"}`, { id: "mt5-save" });

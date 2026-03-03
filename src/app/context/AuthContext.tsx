@@ -24,6 +24,7 @@ interface AuthContextType {
   logout: () => void;
   createAccount: (email: string, password: string, name: string) => Promise<boolean>;
   updateUserProfile: (updates: Partial<User>) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -66,10 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const mt5Accounts = mt5Data?.map((account) => ({
         id: account.id,
-        login: account.login,
-        password: account.password,
-        server: account.server,
-        accountType: account.account_type,
+        login: account.account_number || account.login || "",
+        password: account.investor_password || account.password || "",
+        server: account.broker_server || account.server || "",
+        accountType: account.account_type || "MT5 Account",
       })) || [];
 
       const userObject = {
@@ -118,10 +119,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const mt5Accounts = mt5Data?.map((account) => ({
         id: account.id,
-        login: account.login,
-        password: account.password,
-        server: account.server,
-        accountType: account.account_type,
+        login: account.account_number || account.login || "",
+        password: account.investor_password || account.password || "",
+        server: account.broker_server || account.server || "",
+        accountType: account.account_type || "MT5 Account",
       })) || [];
 
       const userObject = {
@@ -182,10 +183,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from("mt5_accounts")
         .insert({
           user_id: newUser.id,
-          login: "MT5-" + Math.floor(Math.random() * 1000000),
-          password: "Demo" + Math.floor(Math.random() * 10000),
-          server: "ZynxCapital-Demo",
-          account_type: "Demo Account",
+          broker_server: "ZynxCapital-Demo",
+          account_number: "MT5-" + Math.floor(Math.random() * 1000000),
+          investor_password: "Demo" + Math.floor(Math.random() * 10000),
+          status: "active",
         })
         .select()
         .single();
@@ -196,10 +197,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const mt5Accounts = mt5Account ? [{
         id: mt5Account.id,
-        login: mt5Account.login,
-        password: mt5Account.password,
-        server: mt5Account.server,
-        accountType: mt5Account.account_type,
+        login: mt5Account.account_number || "",
+        password: mt5Account.investor_password || "",
+        server: mt5Account.broker_server || "",
+        accountType: "Demo Account",
       }] : [];
 
       // Auto login
@@ -262,12 +263,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshUser = async () => {
+    if (!user) return;
+
+    try {
+      // Fetch user from Supabase
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (userError || !userData) {
+        console.error("Error refreshing user:", userError);
+        localStorage.removeItem("zynx_user_id");
+        setUser(null);
+        return;
+      }
+
+      // Fetch MT5 accounts
+      const { data: mt5Data, error: mt5Error } = await supabase
+        .from("mt5_accounts")
+        .select("*")
+        .eq("user_id", user.id);
+
+      const mt5Accounts = mt5Data?.map((account) => ({
+        id: account.id,
+        login: account.account_number || account.login || "",
+        password: account.investor_password || account.password || "",
+        server: account.broker_server || account.server || "",
+        accountType: account.account_type || "MT5 Account",
+      })) || [];
+
+      const userObject = {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        balance: userData.balance,
+        country: userData.country,
+        mt5Accounts,
+      };
+
+      setUser(userObject);
+    } catch (error) {
+      console.error("Error refreshing user:", error);
+      localStorage.removeItem("zynx_user_id");
+      setUser(null);
+    }
+  };
+
   if (loading) {
     return null; // Or return a loading spinner
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, createAccount, updateUserProfile }}>
+    <AuthContext.Provider value={{ user, login, logout, createAccount, updateUserProfile, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

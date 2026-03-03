@@ -19,6 +19,7 @@ interface KYCDocument {
 
 export function KYCVerification() {
   const navigate = useNavigate();
+  const { user } = useAuth(); // Add this line
   const [documents, setDocuments] = useState<KYCDocument[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<"not_started" | "pending" | "verified" | "rejected">("not_started");
@@ -29,11 +30,10 @@ export function KYCVerification() {
 
   const loadDocuments = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data, error } = await supabase
-        .from("kyc_documents")
+        .from("kyc_submissions")
         .select("*")
         .eq("user_id", user.id)
         .order("submitted_at", { ascending: false });
@@ -55,26 +55,9 @@ export function KYCVerification() {
       }
     } catch (error) {
       console.error("Error loading documents:", error);
-      // Fallback to mock data
-      const mockDocs: KYCDocument[] = [
-        {
-          id: "1",
-          document_type: "id_front",
-          file_name: "passport_front.jpg",
-          status: "verified",
-          submitted_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          verified_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: "2",
-          document_type: "proof_of_address",
-          file_name: "utility_bill.pdf",
-          status: "pending",
-          submitted_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      ];
-      setDocuments(mockDocs);
-      setVerificationStatus("pending");
+      // If table doesn't exist, show empty state
+      setDocuments([]);
+      setVerificationStatus("not_started");
     }
   };
 
@@ -84,22 +67,68 @@ export function KYCVerification() {
     setUploading(documentType);
     try {
       const file = e.target.files[0];
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("File size must be less than 10MB");
+        setUploading(null);
+        return;
+      }
 
-      // In a real app, upload to Supabase Storage
-      // For now, just create a record
-      const { error } = await supabase
-        .from("kyc_documents")
+      // Check if user is logged in
+      if (!user) {
+        toast.error("Not authenticated. Please log in and try again.");
+        setUploading(null);
+        return;
+      }
+
+      // Upload file to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${documentType}_${Date.now()}.${fileExt}`;
+      
+      console.log("📤 Uploading file:", fileName);
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('kyc-documents')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw new Error(`Failed to upload file: ${uploadError.message}`);
+      }
+
+      console.log("✅ Upload successful:", uploadData);
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('kyc-documents')
+        .getPublicUrl(fileName);
+
+      console.log("🔗 Public URL:", publicUrl);
+
+      // Save document record to database
+      const { error: dbError } = await supabase
+        .from("kyc_submissions")
         .insert([{
           user_id: user.id,
+          user_email: user.email,
+          user_name: user.name || user.email,
           document_type: documentType,
           file_name: file.name,
+          file_url: publicUrl,
           status: "pending",
           submitted_at: new Date().toISOString(),
         }]);
 
-      if (error) throw error;
+      if (dbError) {
+        console.error("Database error:", dbError);
+        throw new Error(`Failed to save document record: ${dbError.message}`);
+      }
+
+      console.log("✅ Document record saved to database");
 
       toast.success("Document uploaded successfully! Our team will review it within 24-48 hours.");
       loadDocuments();
