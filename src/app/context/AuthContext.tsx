@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "../lib/supabase";
+import bcrypt from "bcryptjs";
 
 interface User {
   id: string;
@@ -93,12 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      // Find user with matching credentials
+      // Find user by email
       const { data: userData, error } = await supabase
         .from("users")
         .select("*")
         .eq("email", email)
-        .eq("password", password)
         .maybeSingle();
 
       if (error) {
@@ -107,7 +107,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!userData) {
-        // No user found with those credentials
+        // No user found
+        return false;
+      }
+
+      // Compare password with hashed password
+      const isPasswordValid = await bcrypt.compare(password, userData.password);
+      
+      if (!isPasswordValid) {
+        console.log("Invalid password");
         return false;
       }
 
@@ -161,12 +169,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
+      // Hash the password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
       // Create new user
       const { data: newUser, error: userError } = await supabase
         .from("users")
         .insert({
           email,
-          password,
+          password: hashedPassword,
           name,
           balance: 0,
         })

@@ -45,17 +45,30 @@ export function ApplicationTracker() {
 
     try {
       setLoading(true);
+      
+      console.log("🔍 Loading applications for user:", user.email);
+      console.log("🔍 User ID:", user.id);
+      
+      // Try BOTH user_id AND email to find applications
       const { data, error } = await supabase
         .from("funding_applications")
         .select("*")
-        .eq("email", user.email)
+        .or(`user_id.eq.${user.id},email.eq.${user.email}`)
         .order("submitted_at", { ascending: false });
 
       if (error) {
-        console.error("Error loading applications:", error);
+        console.error("❌ Error loading applications:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
         setApplications([]);
         setLoading(false);
         return;
+      }
+
+      console.log("✅ Loaded applications:", data);
+      console.log("Total applications found:", data?.length || 0);
+      
+      if (data && data.length > 0) {
+        console.log("📋 First application:", data[0]);
       }
 
       const appsData = data || [];
@@ -65,7 +78,7 @@ export function ApplicationTracker() {
       }
       setLoading(false);
     } catch (error) {
-      console.error("Error loading applications:", error);
+      console.error("❌ Error loading applications:", error);
       setApplications([]);
       setLoading(false);
     }
@@ -172,6 +185,9 @@ export function ApplicationTracker() {
                     <div className="text-center py-8">
                       <FileText className="w-12 h-12 text-slate-600 mx-auto mb-3" />
                       <p className="text-slate-400 text-sm mb-4">No applications yet</p>
+                      <p className="text-xs text-slate-500 mb-4">
+                        Debug: Email = {user?.email}
+                      </p>
                       <button
                         onClick={() => navigate("/challenges")}
                         className="bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 py-2 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-pink-500/30 transition-all"

@@ -121,10 +121,74 @@ export function Challenges() {
     setIsSubmitting(true);
 
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use user from AuthContext instead of supabase.auth
+      if (!user) {
+        throw new Error("Not authenticated. Please log in.");
+      }
 
-      // Send to Formspree (your email)
+      console.log("📝 Submitting application for user:", user.email);
+      console.log("📝 User ID:", user.id);
+      console.log("📝 User ID type:", typeof user.id);
+      console.log("📝 User ID is null?", user.id === null);
+      console.log("📝 User ID is undefined?", user.id === undefined);
+
+      // CRITICAL: Check if user.id exists
+      if (!user.id) {
+        console.error("❌ CRITICAL: user.id is missing!");
+        alert(
+          "Authentication error: User ID is missing. Please log out and log back in."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Save to Supabase database FIRST
+      const applicationData = {
+        user_id: user.id,
+        name: formData.name,
+        email: formData.email,
+        account_size: `$${selectedChallenge?.accountSize.toLocaleString()}`,
+        experience: formData.experience,
+        trading_pair: formData.tradingPair,
+        country: formData.country,
+        status: "pending",
+        submitted_at: new Date().toISOString(),
+      };
+
+      console.log("💾 Saving to database:", applicationData);
+      console.log("💾 user_id value:", applicationData.user_id);
+      console.log("💾 user_id type:", typeof applicationData.user_id);
+
+      const { data, error: dbError } = await supabase
+        .from("funding_applications")
+        .insert([applicationData])
+        .select();
+
+      if (dbError) {
+        console.error("❌ Database error:", dbError);
+        console.error("❌ Error code:", dbError.code);
+        console.error("❌ Error details:", dbError.details);
+        console.error("❌ Error message:", dbError.message);
+        console.error("❌ Error hint:", dbError.hint);
+
+        // Check if it's the foreign key error
+        if (dbError.code === "23503") {
+          console.error("❌ FOREIGN KEY ERROR!");
+          console.error("❌ This means user.id doesn't exist in users table");
+          console.error("❌ User ID being used:", user.id);
+          alert(
+            `Foreign key error: Your user account may not exist properly. User ID: ${user.id}. Please contact support.`
+          );
+        } else {
+          alert(`Database error: ${dbError.message}. Please contact support.`);
+        }
+        setIsSubmitting(false);
+        return; // STOP HERE - don't continue
+      }
+
+      console.log("✅ Application saved to database:", data);
+
+      // Send to Formspree (your email) - AFTER successful DB save
       const formspreeResponse = await fetch("https://formspree.io/f/mqelrneo", {
         method: "POST",
         headers: {
@@ -141,27 +205,9 @@ export function Challenges() {
         }),
       });
 
-      // Save to Supabase database
-      const { error: dbError } = await supabase
-        .from("funding_applications")
-        .insert([{
-          user_id: user?.id || null,
-          name: formData.name,
-          email: formData.email,
-          account_size: `$${selectedChallenge?.accountSize.toLocaleString()}`,
-          experience: formData.experience,
-          trading_pair: formData.tradingPair,
-          country: formData.country,
-          status: "pending",
-          submitted_at: new Date().toISOString(),
-        }]);
+      console.log("📧 Formspree response:", formspreeResponse.ok);
 
-      if (dbError) {
-        console.error("Error saving to database:", dbError);
-        // Continue anyway - Formspree submission is more important
-      }
-
-      if (formspreeResponse.ok) {
+      if (formspreeResponse.ok || data) {
         setShowSuccess(true);
         setShowApplicationForm(false);
         setFormData({
@@ -173,7 +219,7 @@ export function Challenges() {
         });
       }
     } catch (error) {
-      console.error("Error submitting application:", error);
+      console.error("❌ Error submitting application:", error);
       alert("There was an error submitting your application. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -215,6 +261,10 @@ export function Challenges() {
               <p className="text-sm text-slate-400">Available Balance</p>
               <p className="text-white font-medium">
                 ${user.balance.toLocaleString()}
+              </p>
+              {/* Debug Info */}
+              <p className="text-xs text-slate-600 mt-1">
+                ID: {user.id ? user.id.substring(0, 8) : "MISSING"}
               </p>
             </div>
           </div>

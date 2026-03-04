@@ -405,27 +405,29 @@ export function AdminDashboard() {
     setSendingNotification(true);
     
     try {
-      // Get all authenticated users from auth.users (real users)
-      const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
+      // Get all users from the users table (now accessible to admin via RLS policy)
+      const { data: usersData, error: usersError } = await supabase
+        .from("users")
+        .select("id, email");
 
-      if (authError) {
-        console.error("Error fetching auth users:", authError);
-        toast.error(`Failed to fetch users: ${authError.message}`);
+      if (usersError) {
+        console.error("Error fetching users:", usersError);
+        toast.error(`Failed to fetch users: ${usersError.message}`);
         setSendingNotification(false);
         return;
       }
 
-      const authUsers = authData?.users || [];
-      console.log("Authenticated users to notify:", authUsers.length);
+      const allUsers = usersData || [];
+      console.log("Users to notify:", allUsers.length);
 
-      if (authUsers.length === 0) {
-        toast.error("No authenticated users found to send notifications to");
+      if (allUsers.length === 0) {
+        toast.error("No users found to send notifications to");
         setSendingNotification(false);
         return;
       }
 
-      // Create notification for each authenticated user
-      const notifications = authUsers.map(u => ({
+      // Create notification for each user
+      const notifications = allUsers.map(u => ({
         user_id: u.id,
         type: notificationType,
         title: notificationTitle,
@@ -448,7 +450,7 @@ export function AdminDashboard() {
 
       console.log("Notifications sent successfully:", data);
 
-      toast.success(`🎉 Notification sent to ${authUsers.length} users!`);
+      toast.success(`🎉 Notification sent to ${allUsers.length} users!`);
       setNotificationTitle("");
       setNotificationMessage("");
       setNotificationType("info");
